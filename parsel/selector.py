@@ -747,6 +747,15 @@ class Selector:
             self._warn_if_nested(query, stacklevel=3)
         return self._xpath(query, namespaces, kwargs)
 
+    def _check_operation_supported(self, operation: str) -> None:
+        """Raise a clear, parsel-level error when *operation* is only
+        available on HTML, XML, or text selectors but this selector wraps a
+        non-document object (e.g. a JSON value)."""
+        if self.type not in ("html", "xml", "text"):
+            raise ValueError(
+                f"Cannot use {operation} on a Selector of type {self.type!r}"
+            )
+
     def _warn_if_nested(self, xpath: str, *, stacklevel: int) -> bool:
         if isinstance(self.root, etree._Element) and self.root.getparent() is not None:
             warnings.warn(
@@ -763,8 +772,7 @@ class Selector:
         namespaces: Mapping[str, str] | None,
         kwargs: dict[str, Any],
     ) -> SelectorList[Self]:
-        if self.type not in ("html", "xml", "text"):
-            raise ValueError(f"Cannot use xpath on a Selector of type {self.type!r}")
+        self._check_operation_supported("xpath")
         if self.type in ("html", "xml"):
             root = self.root
             if not hasattr(root, "xpath"):
@@ -820,8 +828,7 @@ class Selector:
 
         .. _cssselect: https://pypi.python.org/pypi/cssselect/
         """
-        if self.type not in ("html", "xml", "text"):
-            raise ValueError(f"Cannot use css on a Selector of type {self.type!r}")
+        self._check_operation_supported("css")
         return self.xpath(self._css2xpath(query))
 
     def _css2xpath(self, query: str) -> str:
@@ -841,6 +848,7 @@ class Selector:
         Passing ``replace_entities`` as ``False`` switches off these
         replacements.
         """
+        self._check_operation_supported("re")
         data = self.get()
         return extract_regex(regex, data, replace_entities=replace_entities)
 
@@ -925,9 +933,9 @@ class Selector:
         """
         Remove all namespaces, allowing to traverse the document using
         namespace-less xpaths. See :ref:`removing-namespaces`.
-        For JSON selectors, this method does nothing.
+        For JSON and text selectors, this method does nothing.
         """
-        if self.type == "json":
+        if self.type in ("json", "text"):
             return
 
         for el in self.root.iter("*"):
@@ -986,6 +994,10 @@ class Selector:
         """
         if self.type == "json":
             return {}
+        if self.type == "text":
+            raise ValueError(
+                "Cannot use attrib on a Selector of type 'text'"
+            )
 
         return dict(self.root.attrib)
 

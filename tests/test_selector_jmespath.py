@@ -136,7 +136,9 @@ class TestJMESPath:
             "D",
         ]
 
-        with pytest.raises(TypeError):
+        with pytest.raises(
+            ValueError, match="Cannot use re on a Selector of type 'json'"
+        ):
             sel.xpath("//div/content").jmespath("user[*].age").re(r"(\d+)")
 
         assert sel.xpath("//div/content").jmespath("unavailable").re(r"(\d+)") == []

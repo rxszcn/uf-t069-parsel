@@ -48,7 +48,9 @@ class TestJSONPath:
 
         assert sel.jsonpath("$.user[*].name").re(r"(\w+)") == ["A"]
 
-        with pytest.raises(TypeError):
+        with pytest.raises(
+            ValueError, match="Cannot use re on a Selector of type 'json'"
+        ):
             sel.jsonpath("$.user[*].age").re(r"(\d+)")
 
         assert sel.jsonpath("$.unavailable").re(r"(\d+)") == []

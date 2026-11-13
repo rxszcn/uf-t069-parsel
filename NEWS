@@ -3,6 +3,19 @@
 History
 -------
 
+UNRELEASED
+~~~~~~~~~~
+
+* Unified the errors raised by selection methods on non-document objects.
+  ``re()`` and ``re_first()`` on a JSON selector, and ``attrib`` on a text
+  selector, now raise a ``ValueError`` naming the unsupported operation and
+  the selector type, e.g. ``Cannot use re on a Selector of type 'json'``,
+  instead of leaking an implementation-level ``TypeError`` or
+  ``AttributeError``. This matches the errors already raised by ``css()``
+  and ``xpath()`` on JSON selectors.
+* ``remove_namespaces()`` now does nothing on text selectors, as it already
+  did on JSON selectors, instead of raising an ``AttributeError``.
+
 1.12.1 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~~
 

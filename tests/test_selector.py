@@ -1253,6 +1253,121 @@ class TestSelector:
         sel = self.sscls(text='{"key": "value"}', type="json")
         assert sel.attrib == {}
 
+    @pytest.mark.parametrize(
+        "json_root",
+        [
+            {"key": "value"},
+            [1, 2, 3],
+            1,
+            "a string",
+            None,
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("reported_operation", "call"),
+        [
+            ("css", lambda sel: sel.css("*")),
+            ("xpath", lambda sel: sel.xpath("//*")),
+            ("re", lambda sel: sel.re(r"\w+")),
+            # re_first() delegates to re(), which is the operation reported.
+            ("re", lambda sel: sel.re_first(r"\w+")),
+        ],
+    )
+    def test_unsupported_operations_on_json_raise_value_error(
+        self,
+        json_root: Any,
+        reported_operation: str,
+        call: Any,
+    ) -> None:
+        """Operations that only make sense on documents report a parsel-level
+        ValueError naming the operation and the selector type, instead of a
+        bare implementation-level exception."""
+        sel = self.sscls(root=json_root)
+        assert sel.type == "json"
+        with pytest.raises(
+            ValueError,
+            match=(
+                rf"Cannot use {re.escape(reported_operation)} "
+                rf"on a Selector of type 'json'"
+            ),
+        ) as exc_info:
+            call(sel)
+        # The error does not leak internal implementation frames.
+        assert exc_info.type is ValueError
+
+    def test_attrib_unsupported_on_text_raises_value_error(self) -> None:
+        sel = self.sscls(text="plain text", type="text")
+        with pytest.raises(
+            ValueError,
+            match="Cannot use attrib on a Selector of type 'text'",
+        ):
+            sel.attrib  # noqa: B018
+
+    @pytest.mark.parametrize(
+        "json_root",
+        [{"key": "value"}, [1, 2], 1, "a string", None],
+    )
+    def test_remove_namespaces_noop_on_json(self, json_root: Any) -> None:
+        sel = self.sscls(root=json_root)
+        assert sel.type == "json"
+        sel.remove_namespaces()  # must not raise
+
+    def test_remove_namespaces_noop_on_text(self) -> None:
+        sel = self.sscls(text="plain text", type="text")
+        sel.remove_namespaces()  # must not raise
+
+    @pytest.mark.parametrize(
+        ("type_", "text"),
+        [
+            ("html", "<html><body><p class='x'>hi</p></body></html>"),
+            ("xml", '<?xml version="1.0"?><a xmlns="urn:x"><b/></a>'),
+            ("text", "plain text"),
+        ],
+    )
+    def test_supported_operations_keep_working(self, type_: str, text: str) -> None:
+        """HTML and XML behavior must not regress, and text selectors still
+        support the document-oriented operations that worked before."""
+        sel = self.sscls(text=text, type=type_)
+        assert sel.re(r"\w+")
+        assert sel.re_first(r"\w+")
+        sel.remove_namespaces()
+        if type_ in ("html", "xml"):
+            assert sel.xpath("//*")
+            assert sel.css("*")
+            assert isinstance(sel.attrib, dict)
+        else:
+            assert sel.xpath("//*")
+            assert sel.css("*")
+
+    @pytest.mark.parametrize(
+        ("operation", "call"),
+        [
+            ("css", lambda sels: sels.css("*")),
+            ("xpath", lambda sels: sels.xpath("//*")),
+            ("re", lambda sels: sels.re(r"\w+")),
+        ],
+    )
+    def test_unsupported_operations_on_json_list_raise_value_error(
+        self, operation: str, call: Any
+    ) -> None:
+        sel = self.sscls(root={"key": "value"})
+        with pytest.raises(
+            ValueError,
+            match=rf"Cannot use {re.escape(operation)} on a Selector of type 'json'",
+        ):
+            call(self.sscls.selectorlist_cls([sel]))
+
+    def test_attrib_unsupported_on_text_list_raises_value_error(self) -> None:
+        sel = self.sscls(text="plain text", type="text")
+        with pytest.raises(
+            ValueError,
+            match="Cannot use attrib on a Selector of type 'text'",
+        ):
+            self.sscls.selectorlist_cls([sel]).attrib  # noqa: B018
+
+    def test_attrib_empty_selector_list(self) -> None:
+        assert self.sscls.selectorlist_cls().attrib == {}
+
 
 class TestExslt:
     sscls = Selector
